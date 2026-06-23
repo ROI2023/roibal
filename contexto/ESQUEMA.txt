@@ -1,0 +1,70 @@
+-- New script in Desarrollo Local.
+-- Date: 18 jun 2026
+-- Time: 17:54:26
+-- ROIBAL-APP
+
+-- 1. Habilitar la extensión para generar UUIDs automáticamente (estándar en Supabase/Postgres)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 2. Crear tabla de Categorías (Categories)
+CREATE TABLE public.categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    icon_name VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 3. Crear tabla de Cuentas (Accounts)
+-- Incluye restricciones CHECK para asegurar que solo entren valores correctos en 'type' y 'currency'
+CREATE TABLE public.accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('cash', 'investment')),
+    currency VARCHAR(3) NOT NULL CHECK (currency IN ('ARS', 'USD')),
+    current_balance NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 4. Crear tabla de Transacciones / Compras (Transactions)
+CREATE TABLE public.transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    description VARCHAR(255) NOT NULL,
+    category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE RESTRICT,
+    currency VARCHAR(3) NOT NULL CHECK (currency IN ('ARS', 'USD')),
+    total_amount NUMERIC(15, 2) NOT NULL CHECK (total_amount >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 5. Crear tabla intermedia de Pagos y Cuotas (Transaction Payments)
+-- Es el núcleo para los pagos múltiples y el mapa de vencimientos a 6-12 meses
+CREATE TABLE public.transaction_payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    transaction_id UUID NOT NULL REFERENCES public.transactions(id) ON DELETE CASCADE,
+    account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE RESTRICT,
+    currency VARCHAR(3) NOT NULL CHECK (currency IN ('ARS', 'USD')),
+    amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+    installment_number INT NOT NULL DEFAULT 1 CHECK (installment_number >= 1),
+    total_installments INT NOT NULL DEFAULT 1 CHECK (total_installments >= 1),
+    due_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'paid' CHECK (status IN ('paid', 'pending')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    
+    -- Restricción lógica: El número de cuota no puede ser mayor al total de cuotas
+    CONSTRAINT chk_installment_range CHECK (installment_number <= total_installments)
+);
+
+-- 6. Insertar algunas categorías por defecto para empezar a probar en DBeaver
+INSERT INTO public.categories (name, icon_name) VALUES 
+('Food & Groceries', 'restaurant'),
+('Transport', 'directions_car'),
+('Utilities & Services', 'receipt'),
+('Leisure & Entertainment', 'local_play'),
+('Investments', 'trending_up'),
+('Other', 'help_outline');
+
+-- 7. Insertar unas cuentas base (ARS y USD) para simular tu billetera y banco
+INSERT INTO public.accounts (name, type, currency, current_balance) VALUES 
+('Cash ARS', 'cash', 'ARS', 25000.00),
+('Cash USD', 'cash', 'USD', 500.00),
+('Galicia Savings ARS', 'cash', 'ARS', 120000.00),
+('Crypto Wallet', 'investment', 'USD', 1500.00);
