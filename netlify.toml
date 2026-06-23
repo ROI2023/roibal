@@ -1,0 +1,18 @@
+[build]
+  base    = "roibal_app"
+  publish = "build/web"
+  command = """
+    if [ ! -d $HOME/flutter ]; then
+      git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter
+    fi
+    export PATH="$PATH:$HOME/flutter/bin"
+    flutter config --enable-web
+    flutter pub get
+    printf 'SUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\n' "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" > .env
+    flutter build web --release --web-renderer canvaskit
+  """
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
