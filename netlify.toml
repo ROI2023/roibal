@@ -8,8 +8,9 @@
     export PATH="$PATH:$HOME/flutter/bin"
     flutter config --enable-web
     flutter pub get
-    printf 'SUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\n' "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" > .env
-    flutter build web --release
+    flutter build web --release \
+      --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+      --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
   """
 
 [[redirects]]
