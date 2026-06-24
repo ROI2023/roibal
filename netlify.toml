@@ -8,6 +8,7 @@
     export PATH="$PATH:$HOME/flutter/bin"
     flutter config --enable-web
     flutter pub get
+    touch .env
     flutter build web --release \
       --dart-define=SUPABASE_URL="$SUPABASE_URL" \
       --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
