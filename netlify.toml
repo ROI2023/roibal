@@ -9,7 +9,7 @@
     flutter config --enable-web
     flutter pub get
     printf 'SUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\n' "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" > .env
-    flutter build web --release --web-renderer canvaskit
+    flutter build web --release
   """
 
 [[redirects]]
