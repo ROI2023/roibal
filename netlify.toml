@@ -11,7 +11,8 @@
     touch .env
     flutter build web --release \
       --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-      --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+      --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+      --dart-define=BUILD_TIME="$(TZ='America/Argentina/Buenos_Aires' date +'%d/%m/%Y %H:%M ART')"
   """
 
 [[redirects]]

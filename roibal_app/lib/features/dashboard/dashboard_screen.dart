@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/build_info.dart';
 import '../../core/config/supabase_config.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/app_logo_title.dart';
@@ -75,7 +76,8 @@ class DashboardScreen extends ConsumerWidget {
               }
               if (value == '/projected-outflows' ||
                   value == '/categories' ||
-                  value == '/accounts') {
+                  value == '/accounts' ||
+                  value == '/groups') {
                 await context.push(value);
                 if (value == '/categories') ref.invalidate(categoriesProvider);
                 if (value == '/accounts') ref.invalidate(accountsProvider);
@@ -85,6 +87,15 @@ class DashboardScreen extends ConsumerWidget {
               if (added == true) await _refresh(ref);
             },
             itemBuilder: (context) => [
+              _sectionHeader(context, 'Gastos grupales'),
+              const PopupMenuItem(
+                value: '/groups',
+                child: ListTile(
+                  leading: Icon(Icons.group_outlined),
+                  title: Text('Eventos y viajes'),
+                ),
+              ),
+              const PopupMenuDivider(),
               _sectionHeader(context, 'Configuración'),
               const PopupMenuItem(
                 value: '/categories',
@@ -130,6 +141,14 @@ class DashboardScreen extends ConsumerWidget {
               const PopupMenuItem(
                 value: 'logout',
                 child: ListTile(leading: Icon(Icons.logout), title: Text('Cerrar sesión')),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(
+                  'v$kAppVersion · $kBuildTime',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ),
             ],
           ),

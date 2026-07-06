@@ -4,6 +4,14 @@ supabase/.temp/
 supabase/.env
 supabase/.env.local
 
+# Migraciones SQL (se ejecutan directo en Supabase dashboard, no se versionan)
+supabase/*.sql
+supabase/migrations/
+
+# Documentación y prompts de diseño (privado, no va al repo)
+*.md
+supabase-schema-lzovmiybsqqiywdiaxnn.png
+
 # Flutter / Dart
 roibal_app/.dart_tool/
 roibal_app/.flutter-plugins

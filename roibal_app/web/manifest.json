@@ -1,6 +1,6 @@
 {
-    "name": "roibal_app",
-    "short_name": "roibal_app",
+    "name": "ROIBAL",
+    "short_name": "ROIBAL",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
