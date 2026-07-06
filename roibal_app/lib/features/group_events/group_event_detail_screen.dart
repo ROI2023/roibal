@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -506,11 +506,15 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         'token': token,
         'created_by': supabase.auth.currentUser!.id,
       });
-      final link = 'https://roibal.app/join/$token';
-      await Clipboard.setData(ClipboardData(text: link));
-      if (mounted) {
+      final base = Uri.base;
+      final link = '${base.scheme}://${base.host}/join/$token';
+      final result = await Share.share(
+        'Te invito al evento "${widget.event.name}" en Roibal. Usá este link para unirte: $link',
+        subject: 'Invitación a ${widget.event.name}',
+      );
+      if (mounted && result.status == ShareResultStatus.unavailable) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Link copiado al portapapeles')),
+          SnackBar(content: Text(link)),
         );
       }
     } catch (e) {
