@@ -500,16 +500,27 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
 
   Future<void> _generateInviteLink() async {
     try {
-      final token = _randomToken();
-      await supabase.from('group_invite_links').insert({
-        'event_id': widget.eventId,
-        'token': token,
-        'created_by': supabase.auth.currentUser!.id,
-      });
+      // Reutilizar link existente para el evento (sin expiración)
+      final existing = await supabase
+          .from('group_invite_links')
+          .select('token')
+          .eq('event_id', widget.eventId)
+          .isFilter('expires_at', null)
+          .maybeSingle();
+
+      final token = existing != null ? existing['token'] as String : _randomToken();
+      if (existing == null) {
+        await supabase.from('group_invite_links').insert({
+          'event_id': widget.eventId,
+          'token': token,
+          'created_by': supabase.auth.currentUser!.id,
+        });
+      }
+
       final base = Uri.base;
       final link = '${base.scheme}://${base.host}/join/$token';
       final result = await Share.share(
-        'Te invito al evento "${widget.event.name}" en Roibal. Usá este link para unirte: $link',
+        'Te invito al evento "${widget.event.name}" en ROIBAL. Usá este link para unirte: $link',
         subject: 'Invitación a ${widget.event.name}',
       );
       if (mounted && result.status == ShareResultStatus.unavailable) {

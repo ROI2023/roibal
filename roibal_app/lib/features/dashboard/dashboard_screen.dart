@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/build_info.dart';
 import '../../core/config/supabase_config.dart';
+import '../../core/router/pending_invite_provider.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/app_logo_title.dart';
 import '../../data/providers/finance_providers.dart';
@@ -46,6 +47,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final token = prefs.getString('pending_invite_token');
     if (token == null || !mounted) return;
     await prefs.remove('pending_invite_token');
+    ref.read(pendingInviteTokenProvider.notifier).state = null;
     // ignore: use_build_context_synchronously
     context.go('/join/$token');
   }
@@ -180,6 +182,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _UserGreeting(),
+            const SizedBox(height: 8),
             categories.maybeWhen(
               data: (data) => data.isEmpty
                   ? OnboardingBanner(
@@ -244,6 +248,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           }
         },
         child: const Icon(Icons.add, size: 36),
+      ),
+    );
+  }
+}
+
+class _UserGreeting extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final user = supabase.auth.currentUser;
+    final meta = user?.userMetadata;
+    final fullName = meta?['full_name'] as String? ?? meta?['name'] as String? ?? '';
+    final firstName = fullName.split(' ').where((s) => s.isNotEmpty).firstOrNull ?? '';
+    final avatarUrl = meta?['avatar_url'] as String? ?? meta?['picture'] as String?;
+    final initials = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            onForegroundImageError: avatarUrl != null ? (_, _) {} : null,
+            child: Text(initials,
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            firstName.isNotEmpty ? 'Hola, $firstName!' : 'Hola!',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ],
       ),
     );
   }

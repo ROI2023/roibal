@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/supabase_config.dart';
 import 'core/router/app_router.dart';
+import 'core/router/pending_invite_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseConfig.initialize();
-  runApp(const ProviderScope(child: RoibalApp()));
+  final prefs = await SharedPreferences.getInstance();
+  final pendingToken = prefs.getString('pending_invite_token');
+  runApp(ProviderScope(
+    overrides: pendingToken != null
+        ? [pendingInviteTokenProvider.overrideWith((ref) => pendingToken)]
+        : const [],
+    child: const RoibalApp(),
+  ));
 }
 
 class RoibalApp extends ConsumerWidget {
