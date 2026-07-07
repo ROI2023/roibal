@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../core/router/pending_invite_provider.dart';
@@ -67,9 +68,11 @@ class _JoinEventScreenState extends ConsumerState<JoinEventScreen> {
   Future<void> _join(String status) async {
     final user = supabase.auth.currentUser;
     if (user == null) {
-      // Guardar token para retomar después del login
+      // Persistir token en SharedPreferences para sobrevivir el page reload del OAuth
       ref.read(pendingInviteTokenProvider.notifier).state = widget.token;
-      context.go('/login');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pending_invite_token', widget.token);
+      if (mounted) context.go('/login');
       return;
     }
 

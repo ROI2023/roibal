@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/build_info.dart';
 import '../../core/config/supabase_config.dart';
@@ -26,10 +27,30 @@ PopupMenuItem<String> _sectionHeader(BuildContext context, String label) {
   );
 }
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
-  Future<void> _refresh(WidgetRef ref) async {
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkPendingInvite();
+  }
+
+  Future<void> _checkPendingInvite() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('pending_invite_token');
+    if (token == null || !mounted) return;
+    await prefs.remove('pending_invite_token');
+    // ignore: use_build_context_synchronously
+    context.go('/join/$token');
+  }
+
+  Future<void> _refresh() async {
     ref.invalidate(accountsProvider);
     ref.invalidate(recentTransactionsLimitProvider);
     ref.invalidate(recentTransactionsProvider);
@@ -39,7 +60,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final accounts = ref.watch(accountsProvider);
     final categories = ref.watch(categoriesProvider);
     final recentTransactions = ref.watch(recentTransactionsProvider);
@@ -84,7 +105,7 @@ class DashboardScreen extends ConsumerWidget {
                 return;
               }
               final added = await context.push<bool>(value);
-              if (added == true) await _refresh(ref);
+              if (added == true) await _refresh();
             },
             itemBuilder: (context) => [
               _sectionHeader(context, 'Gastos grupales'),
@@ -155,7 +176,7 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => _refresh(ref),
+        onRefresh: () => _refresh(),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -219,7 +240,7 @@ class DashboardScreen extends ConsumerWidget {
         onPressed: () async {
           final added = await context.push<bool>('/add-expense');
           if (added == true) {
-            await _refresh(ref);
+            await _refresh();
           }
         },
         child: const Icon(Icons.add, size: 36),
