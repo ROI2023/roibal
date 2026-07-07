@@ -501,12 +501,13 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
   Future<void> _generateInviteLink() async {
     try {
       // Reutilizar link existente para el evento (sin expiración)
-      final existing = await supabase
+      final rows = await supabase
           .from('group_invite_links')
           .select('token')
           .eq('event_id', widget.eventId)
           .isFilter('expires_at', null)
-          .maybeSingle();
+          .limit(1);
+      final existing = rows.isNotEmpty ? rows.first : null;
 
       final token = existing != null ? existing['token'] as String : _randomToken();
       if (existing == null) {
