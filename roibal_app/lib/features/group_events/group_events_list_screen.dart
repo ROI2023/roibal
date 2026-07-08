@@ -9,12 +9,53 @@ import '../../data/providers/group_providers.dart';
 class GroupEventsListScreen extends ConsumerWidget {
   const GroupEventsListScreen({super.key});
 
+  Future<void> _enterToken(BuildContext context) async {
+    final controller = TextEditingController();
+    final token = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Código de invitación'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'Pegá el token aquí',
+            helperText: 'Es la parte final del link de invitación',
+          ),
+          autofocus: true,
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Ir'),
+          ),
+        ],
+      ),
+    );
+    if (token != null && token.isNotEmpty && context.mounted) {
+      context.push('/join/$token');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final events = ref.watch(myGroupEventsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Gastos grupales')),
+      appBar: AppBar(
+        title: const Text('Gastos grupales'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Tengo un código de invitación',
+            onPressed: () => _enterToken(context),
+          ),
+        ],
+      ),
       body: events.when(
         data: (data) => data.isEmpty
             ? const Center(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../core/router/pending_invite_provider.dart';
+import '../../data/providers/auth_providers.dart';
 
 class JoinEventScreen extends ConsumerStatefulWidget {
   final String token;
@@ -149,7 +151,20 @@ class _JoinEventScreenState extends ConsumerState<JoinEventScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild cuando cambia el estado de auth (ej: OAuth completa en background)
+    ref.watch(authStateProvider);
     final isLoggedIn = supabase.auth.currentSession != null;
+
+    // Si el usuario acaba de loguearse pero _event es null (cargó sin auth → RLS),
+    // recargar la invitación ahora que hay sesión.
+    if (isLoggedIn && _event == null && !_loading && _error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadInvite());
+    }
+
+    if (kDebugMode) {
+      debugPrint('[JoinEvent] token=${widget.token} isLoggedIn=$isLoggedIn '
+          '_loading=$_loading _event=${_event?['name']} _error=$_error');
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Invitación a evento grupal')),
