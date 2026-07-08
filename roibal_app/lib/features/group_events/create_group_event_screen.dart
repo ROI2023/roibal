@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../data/models/group_event.dart';
@@ -22,11 +26,39 @@ class _CreateGroupEventScreenState extends ConsumerState<CreateGroupEventScreen>
   String _baseCurrency = 'ARS';
   SplitMode _splitMode = SplitMode.perCurrency;
   bool _saving = false;
+  Uint8List? _coverBytes;
+  String? _coverMime;
 
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCover() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 85,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    setState(() {
+      _coverBytes = bytes;
+      _coverMime = file.mimeType ?? 'image/jpeg';
+    });
+  }
+
+  Future<String?> _uploadCover(String eventId) async {
+    if (_coverBytes == null) return null;
+    final path = '$eventId/cover.jpg';
+    await supabase.storage.from('group-covers').uploadBinary(
+          path,
+          _coverBytes!,
+          fileOptions: FileOptions(upsert: true, contentType: _coverMime),
+        );
+    return supabase.storage.from('group-covers').getPublicUrl(path);
   }
 
   Future<void> _pickDate({required bool isEnd}) async {
@@ -83,6 +115,14 @@ class _CreateGroupEventScreenState extends ConsumerState<CreateGroupEventScreen>
         'joined_at': DateTime.now().toIso8601String(),
       });
 
+      // Subir foto de portada si el usuario eligió una
+      final coverUrl = await _uploadCover(eventRow['id'] as String);
+      if (coverUrl != null) {
+        await supabase.from('group_events')
+            .update({'cover_image_url': coverUrl})
+            .eq('id', eventRow['id'] as String);
+      }
+
       if (mounted) context.pushReplacement('/groups/${eventRow['id']}');
     } catch (e) {
       _showError('No se pudo crear el evento: $e');
@@ -104,6 +144,47 @@ class _CreateGroupEventScreenState extends ConsumerState<CreateGroupEventScreen>
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Foto de portada opcional
+          GestureDetector(
+            onTap: _pickCover,
+            child: Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+                image: _coverBytes != null
+                    ? DecorationImage(
+                        image: MemoryImage(_coverBytes!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: _coverBytes == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate_outlined,
+                            size: 40,
+                            color: Theme.of(context).colorScheme.outline),
+                        const SizedBox(height: 8),
+                        Text('Foto de portada (opcional)',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.outline)),
+                      ],
+                    )
+                  : Align(
+                      alignment: Alignment.bottomRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: FilledButton.tonal(
+                          onPressed: _pickCover,
+                          child: const Text('Cambiar foto'),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
           TextField(
             controller: _nameController,
             decoration: const InputDecoration(

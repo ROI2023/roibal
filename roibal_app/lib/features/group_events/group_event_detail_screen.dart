@@ -1,10 +1,13 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../data/models/group_event.dart';
@@ -30,6 +33,7 @@ class GroupEventDetailScreen extends ConsumerStatefulWidget {
 class _GroupEventDetailScreenState extends ConsumerState<GroupEventDetailScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  bool _noteDismissed = false;
 
   @override
   void initState() {
@@ -50,6 +54,131 @@ class _GroupEventDetailScreenState extends ConsumerState<GroupEventDetailScreen>
     ref.invalidate(groupMemberSharesProvider(widget.eventId));
     ref.invalidate(groupPartialPaymentsProvider(widget.eventId));
     ref.invalidate(groupSettlementsProvider(widget.eventId));
+  }
+
+  Future<void> _editEvent(GroupEvent event) async {
+    final nameCtrl = TextEditingController(text: event.name);
+    Uint8List? newCoverBytes;
+    String? newCoverMime;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Editar evento'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    final picker = ImagePicker();
+                    final file = await picker.pickImage(
+                      source: ImageSource.gallery,
+                      maxWidth: 1200,
+                      imageQuality: 85,
+                    );
+                    if (file == null) return;
+                    final bytes = await file.readAsBytes();
+                    setS(() {
+                      newCoverBytes = bytes;
+                      newCoverMime = file.mimeType ?? 'image/jpeg';
+                    });
+                  },
+                  child: Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                      image: newCoverBytes != null
+                          ? DecorationImage(
+                              image: MemoryImage(newCoverBytes!), fit: BoxFit.cover)
+                          : (event.coverImageUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(event.coverImageUrl!),
+                                  fit: BoxFit.cover)
+                              : null),
+                    ),
+                    child: newCoverBytes == null && event.coverImageUrl == null
+                        ? Center(
+                            child: Icon(Icons.add_photo_alternate_outlined,
+                                color: Theme.of(ctx).colorScheme.outline))
+                        : Align(
+                            alignment: Alignment.bottomRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: FilledButton.tonal(
+                                onPressed: null,
+                                child: const Text('Cambiar'),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre del evento'),
+                  textCapitalization: TextCapitalization.sentences,
+                  autofocus: true,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Guardar')),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true || !mounted) return;
+
+    final newName = nameCtrl.text.trim();
+    if (newName.isEmpty) return;
+
+    try {
+      String? coverUrl;
+      if (newCoverBytes != null) {
+        final path = '${event.id}/cover.jpg';
+        await supabase.storage.from('group-covers').uploadBinary(
+              path,
+              newCoverBytes!,
+              fileOptions: FileOptions(upsert: true, contentType: newCoverMime),
+            );
+        coverUrl = supabase.storage.from('group-covers').getPublicUrl(path);
+      }
+
+      final myName =
+          supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+              supabase.auth.currentUser?.email ??
+              'Organizador';
+      final changes = <String>[];
+      if (newName != event.name) changes.add('nombre cambiado a "$newName"');
+      if (coverUrl != null) changes.add('foto de portada actualizada');
+      final note = changes.isEmpty
+          ? null
+          : '$myName actualizó el grupo: ${changes.join(', ')}.';
+
+      await supabase.from('group_events').update({
+        'name': newName,
+        'cover_image_url': ?coverUrl,
+        'last_update_note': ?note,
+      }).eq('id', event.id);
+
+      setState(() => _noteDismissed = false);
+      _invalidateAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   Future<void> _reopenEvent() async {
@@ -92,6 +221,20 @@ class _GroupEventDetailScreenState extends ConsumerState<GroupEventDetailScreen>
   @override
   Widget build(BuildContext context) {
     final eventAsync = ref.watch(groupEventProvider(widget.eventId));
+    final sharesAsync = ref.watch(groupMemberSharesProvider(widget.eventId));
+    final membersAsync = ref.watch(groupMembersProvider(widget.eventId));
+    final expensesAsync = ref.watch(groupExpensesProvider(widget.eventId));
+
+    // Badge: advertir si hay gastos pero los % aún no están configurados
+    final accepted = membersAsync.value
+            ?.where((m) => m.status == GroupMemberStatus.accepted)
+            .toList() ??
+        [];
+    final hasExpenses = expensesAsync.value?.isNotEmpty ?? false;
+    final hasShares = sharesAsync.value?.any(
+            (s) => accepted.any((m) => m.id == s.groupMemberId)) ??
+        false;
+    final sharesWarning = accepted.isNotEmpty && hasExpenses && !hasShares;
 
     return eventAsync.when(
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -102,16 +245,52 @@ class _GroupEventDetailScreenState extends ConsumerState<GroupEventDetailScreen>
         }
         return Scaffold(
           appBar: AppBar(
-            title: Text(event.name),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (event.coverImageUrl != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.network(
+                      event.coverImageUrl!,
+                      width: 28, height: 28, fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(event.name, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
             bottom: TabBar(
               controller: _tabController,
-              tabs: const [
-                Tab(text: 'Gastos'),
-                Tab(text: 'Miembros & %'),
-                Tab(text: 'Balance'),
+              tabs: [
+                const Tab(text: 'Gastos'),
+                Tab(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Miembros & %'),
+                      if (sharesWarning) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.warning_amber_rounded,
+                            size: 14, color: Colors.orange),
+                      ],
+                    ],
+                  ),
+                ),
+                const Tab(text: 'Balance'),
               ],
             ),
             actions: [
+              if (event.createdBy == supabase.auth.currentUser?.id)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Editar grupo',
+                  onPressed: () => _editEvent(event),
+                ),
               if (event.status == GroupEventStatus.pending)
                 TextButton.icon(
                   onPressed: _reopenEvent,
@@ -130,36 +309,53 @@ class _GroupEventDetailScreenState extends ConsumerState<GroupEventDetailScreen>
                 ),
             ],
           ),
-          body: TabBarView(
-            controller: _tabController,
+          body: Column(
             children: [
-              _GastosTab(eventId: widget.eventId, event: event, onRefresh: _invalidateAll),
-              _MembersTab(eventId: widget.eventId, event: event, onRefresh: _invalidateAll),
-              _BalanceTab(eventId: widget.eventId, event: event),
+              if (event.lastUpdateNote != null && !_noteDismissed)
+                MaterialBanner(
+                  content: Text(event.lastUpdateNote!),
+                  leading: const Icon(Icons.info_outline, size: 20),
+                  actions: [
+                    TextButton(
+                      onPressed: () => setState(() => _noteDismissed = true),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _GastosTab(eventId: widget.eventId, event: event, onRefresh: _invalidateAll),
+                    _MembersTab(eventId: widget.eventId, event: event, onRefresh: _invalidateAll),
+                    _BalanceTab(eventId: widget.eventId, event: event),
+                  ],
+                ),
+              ),
             ],
           ),
           floatingActionButton: ListenableBuilder(
             listenable: _tabController,
             builder: (context, _) {
               if (_tabController.index == 0 && event.status == GroupEventStatus.open) {
-                return FloatingActionButton.extended(
+                return FloatingActionButton(
                   onPressed: () async {
                     await context.push('/groups/${widget.eventId}/expenses/new');
                     _invalidateAll();
                   },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Gasto'),
+                  child: const Icon(Icons.add),
                 );
               }
               if (_tabController.index == 2 && event.status == GroupEventStatus.open) {
-                return FloatingActionButton.extended(
+                return FloatingActionButton(
                   onPressed: () async {
                     await context.push('/groups/${widget.eventId}/settle');
                     _invalidateAll();
                   },
-                  icon: const Icon(Icons.lock_outline),
-                  label: const Text('Cerrar y liquidar'),
                   backgroundColor: Theme.of(context).colorScheme.tertiary,
+                  foregroundColor: Theme.of(context).colorScheme.onTertiary,
+                  tooltip: 'Cerrar y liquidar',
+                  child: const Icon(Icons.lock_outline),
                 );
               }
               return const SizedBox.shrink();
@@ -275,10 +471,10 @@ class _PartialPaymentTile extends ConsumerWidget {
     String? selectedAccountId;
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isFrom ? 'Confirmar pago enviado' : 'Confirmar pago recibido'),
-        content: StatefulBuilder(
-          builder: (ctx, setS) => DropdownButtonFormField<String>(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(isFrom ? 'Confirmar pago enviado' : 'Confirmar pago recibido'),
+          content: DropdownButtonFormField<String>(
             decoration: const InputDecoration(labelText: 'Cuenta personal'),
             items: (accounts as List)
                 .map((a) => DropdownMenuItem<String>(
@@ -288,14 +484,14 @@ class _PartialPaymentTile extends ConsumerWidget {
                 .toList(),
             onChanged: (v) => setS(() => selectedAccountId = v),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: selectedAccountId == null ? null : () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: selectedAccountId == null ? null : () => Navigator.pop(ctx, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
       ),
     );
 
@@ -542,6 +738,69 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
     return List.generate(20, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 
+  Future<void> _showCalculateDialog(
+      List<GroupMember> members, List<String> currencies) async {
+    final option = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Calcular porcentajes'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(child: Icon(Icons.people_outline)),
+              title: const Text('Dividir en partes iguales'),
+              subtitle: Text(
+                '${members.length} miembros → '
+                '${(100 / members.length).toStringAsFixed(1)}% c/u',
+              ),
+              onTap: () => Navigator.pop(ctx, 'equal'),
+            ),
+            if (currencies.length > 1) ...[
+              const Divider(),
+              const Text('Copiar % de una moneda a las demás:'),
+              const SizedBox(height: 4),
+              ...currencies.map((c) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(child: Icon(Icons.copy_outlined)),
+                    title: Text('Copiar desde $c'),
+                    onTap: () => Navigator.pop(ctx, 'copy:$c'),
+                  )),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+        ],
+      ),
+    );
+
+    if (option == null || !mounted) return;
+
+    setState(() {
+      if (option == 'equal') {
+        final pct = (100 / members.length).toStringAsFixed(1);
+        for (final m in members) {
+          for (final c in currencies) {
+            _controllers[m.id]?[c]?.text = pct;
+          }
+        }
+      } else if (option.startsWith('copy:')) {
+        final source = option.substring(5);
+        for (final m in members) {
+          final sourceText = _controllers[m.id]?[source]?.text ?? '';
+          for (final c in currencies) {
+            if (c != source) _controllers[m.id]?[c]?.text = sourceText;
+          }
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final membersAsync = ref.watch(groupMembersProvider(widget.eventId));
@@ -596,8 +855,20 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                       )),
                   if (widget.event.status == GroupEventStatus.open && accepted.isNotEmpty) ...[
                     const SizedBox(height: 24),
-                    Text('Porcentajes de responsabilidad',
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Row(
+                      children: [
+                        Text('Porcentajes de responsabilidad',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: currencies.isEmpty
+                              ? null
+                              : () => _showCalculateDialog(accepted, currencies),
+                          icon: const Icon(Icons.calculate_outlined, size: 16),
+                          label: const Text('Calcular %'),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Cada moneda debe sumar 100%.',
@@ -854,6 +1125,8 @@ class _BalanceTabState extends ConsumerState<_BalanceTab> {
                               child: Row(
                                 children: [
                                   CircleAvatar(
+                                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                                    foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
                                     child: Text(b.member.label[0].toUpperCase()),
                                   ),
                                   const SizedBox(width: 12),

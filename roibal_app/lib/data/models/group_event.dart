@@ -36,6 +36,8 @@ class GroupEvent {
   final SplitMode splitMode;
   final String baseCurrency;
   final DateTime createdAt;
+  final String? coverImageUrl;
+  final String? lastUpdateNote;
 
   const GroupEvent({
     required this.id,
@@ -47,6 +49,8 @@ class GroupEvent {
     required this.splitMode,
     required this.baseCurrency,
     required this.createdAt,
+    this.coverImageUrl,
+    this.lastUpdateNote,
   });
 
   factory GroupEvent.fromJson(Map<String, dynamic> json) => GroupEvent(
@@ -61,6 +65,8 @@ class GroupEvent {
         splitMode: _splitModeFromString(json['split_mode'] as String),
         baseCurrency: json['base_currency'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
+        coverImageUrl: json['cover_image_url'] as String?,
+        lastUpdateNote: json['last_update_note'] as String?,
       );
 
   Map<String, dynamic> toInsert() => {

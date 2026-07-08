@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 class AppLogoTitle extends StatelessWidget {
   final double logoSize;
   final TextStyle? textStyle;
+  final Color? color;
 
-  const AppLogoTitle({super.key, this.logoSize = 32, this.textStyle});
+  const AppLogoTitle({super.key, this.logoSize = 32, this.textStyle, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +19,8 @@ class AppLogoTitle extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           'ROIBAL',
-          style: textStyle ?? Theme.of(context).textTheme.headlineMedium,
+          style: (textStyle ?? Theme.of(context).textTheme.headlineMedium)
+              ?.copyWith(color: color),
         ),
       ],
     );

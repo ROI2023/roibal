@@ -71,28 +71,70 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final themeMode = ref.watch(themeModeProvider);
 
+    final colorScheme = Theme.of(context).colorScheme;
+    final user = supabase.auth.currentUser;
+    final meta = user?.userMetadata;
+    final fullName = meta?['full_name'] as String? ?? meta?['name'] as String? ?? '';
+    final firstName = fullName.split(' ').where((s) => s.isNotEmpty).firstOrNull ?? '';
+    final avatarUrl = meta?['avatar_url'] as String? ?? meta?['picture'] as String?;
+    final initials = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
+    final displayName = firstName.isNotEmpty
+        ? firstName
+        : user?.email?.split('@').firstOrNull ?? '';
+
     return Scaffold(
       appBar: AppBar(
-        title: const AppLogoTitle(logoSize: 28),
+        backgroundColor: colorScheme.inverseSurface,
+        foregroundColor: colorScheme.onInverseSurface,
+        title: AppLogoTitle(logoSize: 28, color: colorScheme.onInverseSurface),
         actions: [
-          PopupMenuButton<ThemeMode>(
-            tooltip: 'Tema',
-            icon: Icon(switch (themeMode) {
-              ThemeMode.light => Icons.light_mode_outlined,
-              ThemeMode.dark => Icons.dark_mode_outlined,
-              ThemeMode.system => Icons.brightness_auto_outlined,
-            }),
-            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: ThemeMode.light, child: Text('Claro')),
-              PopupMenuItem(value: ThemeMode.dark, child: Text('Oscuro')),
-              PopupMenuItem(value: ThemeMode.system, child: Text('Sistema')),
-            ],
-          ),
           PopupMenuButton<String>(
-            tooltip: 'Más',
-            icon: const Icon(Icons.more_vert),
+            tooltip: 'Menú',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor:
+                        colorScheme.onInverseSurface.withValues(alpha: 0.2),
+                    foregroundImage:
+                        avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                    onForegroundImageError:
+                        avatarUrl != null ? (_, _) {} : null,
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        color: colorScheme.onInverseSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (displayName.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      displayName,
+                      style: TextStyle(color: colorScheme.onInverseSurface),
+                    ),
+                  ],
+                  const SizedBox(width: 2),
+                  Icon(Icons.arrow_drop_down,
+                      color: colorScheme.onInverseSurface),
+                ],
+              ),
+            ),
             onSelected: (value) async {
+              if (value.startsWith('theme:')) {
+                final mode = switch (value) {
+                  'theme:light' => ThemeMode.light,
+                  'theme:dark' => ThemeMode.dark,
+                  _ => ThemeMode.system,
+                };
+                ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                return;
+              }
               if (value == 'logout') {
                 await supabase.auth.signOut();
                 return;
@@ -158,6 +200,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: ListTile(
                   leading: Icon(Icons.event_note_outlined),
                   title: Text('Salidas proyectadas'),
+                ),
+              ),
+              const PopupMenuDivider(),
+              _sectionHeader(context, 'Apariencia'),
+              PopupMenuItem(
+                value: 'theme:light',
+                child: ListTile(
+                  leading: const Icon(Icons.light_mode_outlined),
+                  title: const Text('Tema claro'),
+                  trailing: themeMode == ThemeMode.light
+                      ? const Icon(Icons.check, size: 18)
+                      : null,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'theme:dark',
+                child: ListTile(
+                  leading: const Icon(Icons.dark_mode_outlined),
+                  title: const Text('Tema oscuro'),
+                  trailing: themeMode == ThemeMode.dark
+                      ? const Icon(Icons.check, size: 18)
+                      : null,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'theme:system',
+                child: ListTile(
+                  leading: const Icon(Icons.brightness_auto_outlined),
+                  title: const Text('Tema del sistema'),
+                  trailing: themeMode == ThemeMode.system
+                      ? const Icon(Icons.check, size: 18)
+                      : null,
                 ),
               ),
               const PopupMenuDivider(),
@@ -253,7 +327,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
-class _UserGreeting extends StatelessWidget {
+class _UserGreeting extends StatefulWidget {
+  @override
+  State<_UserGreeting> createState() => _UserGreetingState();
+}
+
+class _UserGreetingState extends State<_UserGreeting> {
+  bool _visible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
@@ -263,26 +352,37 @@ class _UserGreeting extends StatelessWidget {
     final avatarUrl = meta?['avatar_url'] as String? ?? meta?['picture'] as String?;
     final initials = firstName.isNotEmpty ? firstName[0].toUpperCase() : '?';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            foregroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-            onForegroundImageError: avatarUrl != null ? (_, _) {} : null,
-            child: Text(initials,
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold)),
+    return AnimatedOpacity(
+      opacity: _visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 700),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOut,
+        child: SizedBox(
+          height: _visible ? null : 0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  foregroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  onForegroundImageError: avatarUrl != null ? (_, _) {} : null,
+                  child: Text(initials,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  firstName.isNotEmpty ? 'Hola, $firstName!' : 'Hola!',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            firstName.isNotEmpty ? 'Hola, $firstName!' : 'Hola!',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -25,7 +25,15 @@ class _JoinEventScreenState extends ConsumerState<JoinEventScreen> {
   @override
   void initState() {
     super.initState();
-    _loadInvite();
+    if (supabase.auth.currentUser != null) {
+      // Already logged in: load invite directly.
+      _loadInvite();
+    } else {
+      // Not logged in: RLS blocks anon queries on group_invite_links.
+      // Skip loading and show the login button immediately.
+      // _loadInvite() is triggered from build() after the OAuth redirect lands here.
+      _loading = false;
+    }
   }
 
   Future<void> _loadInvite() async {
@@ -192,20 +200,14 @@ class _JoinEventScreenState extends ConsumerState<JoinEventScreen> {
                       children: [
                         const Icon(Icons.group_add_outlined, size: 64),
                         const SizedBox(height: 16),
-                        Text(
-                          'Te invitaron a unirte a:',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _event?['name'] as String? ?? '',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),
                         if (!isLoggedIn) ...[
+                          Text(
+                            'Recibiste una invitación',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
                           const Text(
-                            'Necesitás iniciar sesión para aceptar la invitación.',
+                            'Iniciá sesión para ver los detalles y unirte al evento.',
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 24),
@@ -214,7 +216,21 @@ class _JoinEventScreenState extends ConsumerState<JoinEventScreen> {
                             icon: const Icon(Icons.login),
                             label: const Text('Iniciar sesión y unirme'),
                           ),
+                        ] else if (_event == null) ...[
+                          const SizedBox(height: 16),
+                          const CircularProgressIndicator(),
                         ] else ...[
+                          Text(
+                            'Te invitaron a unirte a:',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _event!['name'] as String? ?? '',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 32),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [

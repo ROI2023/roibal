@@ -126,42 +126,85 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     if (!context.mounted) return;
 
     String? selectedAccountId;
+    String? selectedAccountCurrency;
+    final rateController = TextEditingController();
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isFrom ? 'Confirmar: yo pagué' : 'Confirmar: yo recibí'),
-        content: StatefulBuilder(
-          builder: (ctx, setS) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isFrom
-                    ? 'Confirmás que pagaste ${s.currency} ${s.amount.toStringAsFixed(2)} '
-                        'a ${s.toMember?.label ?? '?'}.'
-                    : 'Confirmás que recibiste ${s.currency} ${s.amount.toStringAsFixed(2)} '
-                        'de ${s.fromMember?.label ?? '?'}.',
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Cuenta personal'),
-                items: (accounts as List)
-                    .map((a) => DropdownMenuItem<String>(
-                          value: a['id'] as String,
-                          child: Text('${a['name']} (${a['currency']})'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setS(() => selectedAccountId = v),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final crossCurrency = selectedAccountCurrency != null &&
+              selectedAccountCurrency != s.currency;
+          final rateOk = !crossCurrency ||
+              (double.tryParse(rateController.text.replaceAll(',', '.')) ?? 0) > 0;
+
+          return AlertDialog(
+            title: Text(isFrom ? 'Confirmar: yo pagué' : 'Confirmar: yo recibí'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isFrom
+                      ? 'Confirmás que pagaste ${s.currency} ${s.amount.toStringAsFixed(2)} '
+                          'a ${s.toMember?.label ?? '?'}.'
+                      : 'Confirmás que recibiste ${s.currency} ${s.amount.toStringAsFixed(2)} '
+                          'de ${s.fromMember?.label ?? '?'}.',
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Cuenta personal'),
+                  items: (accounts as List)
+                      .map((a) => DropdownMenuItem<String>(
+                            value: a['id'] as String,
+                            child: Text('${a['name']} (${a['currency']})'),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    final acct = (accounts as List)
+                        .firstWhere((a) => a['id'] == v);
+                    setS(() {
+                      selectedAccountId = v;
+                      selectedAccountCurrency = acct['currency'] as String;
+                      rateController.clear();
+                    });
+                  },
+                ),
+                if (crossCurrency) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'La cuenta es en $selectedAccountCurrency pero la deuda '
+                    'es en ${s.currency}. Ingresá el tipo de cambio:',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: rateController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText:
+                          '1 ${s.currency} = ? $selectedAccountCurrency',
+                      hintText: 'ej: 1200',
+                    ),
+                    onChanged: (_) => setS(() {}),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: selectedAccountId == null || !rateOk
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: const Text('Confirmar'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: selectedAccountId == null ? null : () => Navigator.pop(ctx, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
+          );
+        },
       ),
     );
 
@@ -174,6 +217,14 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
           ? 'Liquidación grupal a ${s.toMember?.label ?? ''}'
           : 'Liquidación grupal de ${s.fromMember?.label ?? ''}';
       final txAmount = isFrom ? -s.amount : s.amount;
+
+      // Cross-currency: si la cuenta es distinta moneda, convertir el monto
+      final accountCurrency = selectedAccountCurrency ?? s.currency;
+      final rate = accountCurrency != s.currency
+          ? (double.tryParse(rateController.text.replaceAll(',', '.')) ?? 1.0)
+          : 1.0;
+      final movementAmount = txAmount * rate;
+      final movementCurrency = accountCurrency;
 
       final txRow = await supabase
           .from('transactions')
@@ -192,8 +243,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         'user_id': userId,
         'transaction_id': txRow['id'],
         'account_id': selectedAccountId,
-        'currency': s.currency,
-        'amount': txAmount,
+        'currency': movementCurrency,
+        'amount': movementAmount,
         'installment_number': 1,
         'total_installments': 1,
         'due_date': now.toIso8601String().split('T').first,

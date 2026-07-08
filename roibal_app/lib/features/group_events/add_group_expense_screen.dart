@@ -39,6 +39,10 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
       _showError('Ingresá un monto válido');
       return;
     }
+    if (_selectedCategory == null) {
+      _showError('Elegí una categoría para el gasto');
+      return;
+    }
     if (_selectedAccount == null) {
       _showError('Elegí una cuenta personal');
       return;
@@ -150,23 +154,44 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
                     .toList(),
               ),
               const SizedBox(height: 24),
-              Text('Categoría (opcional)', style: Theme.of(context).textTheme.titleMedium),
+              Text('Categoría *', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               categoriesAsync.when(
-                data: (cats) => Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: cats
-                      .map((c) => ChoiceChip(
-                            label: Text(c.name),
-                            selected: _selectedCategory?.id == c.id,
-                            onSelected: (_) => setState(
-                              () => _selectedCategory =
-                                  _selectedCategory?.id == c.id ? null : c,
+                data: (cats) => cats.isEmpty
+                    ? Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber, color: Theme.of(context).colorScheme.error, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'No tenés categorías de egreso. Creá al menos una antes de cargar gastos.',
+                                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.error),
+                              ),
                             ),
-                          ))
-                      .toList(),
-                ),
+                          ],
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: cats
+                            .map((c) => ChoiceChip(
+                                  label: Text(c.name),
+                                  selected: _selectedCategory?.id == c.id,
+                                  onSelected: (_) => setState(
+                                    () => _selectedCategory =
+                                        _selectedCategory?.id == c.id ? null : c,
+                                  ),
+                                ))
+                            .toList(),
+                      ),
                 loading: () => const CircularProgressIndicator(),
                 error: (e, _) => Text('Error: $e'),
               ),

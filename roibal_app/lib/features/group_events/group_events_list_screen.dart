@@ -106,9 +106,20 @@ class _EventCard extends StatelessWidget {
         ? '${dateFormat.format(event.startDate)} – ${dateFormat.format(event.endDate!)}'
         : 'Desde ${dateFormat.format(event.startDate)}';
 
+    final cover = event.coverImageUrl;
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.group_outlined),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: cover != null
+              ? Image.network(cover,
+                  width: 48, height: 48, fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      const SizedBox(width: 48, height: 48,
+                          child: Icon(Icons.group_outlined)))
+              : const SizedBox(width: 48, height: 48,
+                  child: Icon(Icons.group_outlined)),
+        ),
         title: Text(event.name),
         subtitle: Text(subtitle),
         trailing: _StatusChip(event.status),
