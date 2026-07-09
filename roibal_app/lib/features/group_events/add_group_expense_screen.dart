@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../data/models/account.dart';
@@ -24,6 +25,7 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
   String _currency = 'ARS';
   Category? _selectedCategory;
   Account? _selectedAccount;
+  DateTime _expenseDate = DateTime.now();
   bool _saving = false;
 
   @override
@@ -51,7 +53,9 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
     setState(() => _saving = true);
     try {
       final userId = supabase.auth.currentUser!.id;
-      final now = DateTime.now();
+      final dateOnly = DateTime(
+          _expenseDate.year, _expenseDate.month, _expenseDate.day);
+      final dateStr = dateOnly.toIso8601String().split('T').first;
       final description = _descriptionController.text.trim().isEmpty
           ? (_selectedCategory?.name ?? 'Gasto grupal')
           : _descriptionController.text.trim();
@@ -65,7 +69,7 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
             'category_id': _selectedCategory?.id,
             'currency': _currency,
             'total_amount': amount,
-            'transaction_date': now.toIso8601String(),
+            'transaction_date': dateStr,
             'is_transfer': false,
           })
           .select()
@@ -80,9 +84,9 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
         'amount': -amount,
         'installment_number': 1,
         'total_installments': 1,
-        'due_date': now.toIso8601String().split('T').first,
+        'due_date': dateStr,
         'status': 'paid',
-        'paid_date': now.toIso8601String(),
+        'paid_date': dateStr,
       });
 
       // 3. Crear group_expense vinculado
@@ -93,7 +97,7 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
         'category_id': _selectedCategory?.id,
         'currency': _currency,
         'amount': amount,
-        'expense_date': now.toIso8601String(),
+        'expense_date': dateStr,
         'personal_transaction_id': txRow['id'],
       });
 
@@ -139,6 +143,20 @@ class _AddGroupExpenseScreenState extends ConsumerState<AddGroupExpenseScreen> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
                 textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _expenseDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) setState(() => _expenseDate = picked);
+                },
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: Text(DateFormat('dd/MM/yyyy').format(_expenseDate)),
               ),
               const SizedBox(height: 24),
               Text('Moneda', style: Theme.of(context).textTheme.titleMedium),

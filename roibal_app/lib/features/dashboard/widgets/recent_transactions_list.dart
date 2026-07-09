@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/category_icons.dart';
@@ -57,6 +58,11 @@ class _RecentTransactionsListState extends ConsumerState<RecentTransactionsList>
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.list_alt_outlined, size: 18),
+                    tooltip: 'Ver todos los movimientos',
+                    onPressed: () => context.push('/movements'),
+                  ),
                   for (final e in sumByCurrency.entries)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),

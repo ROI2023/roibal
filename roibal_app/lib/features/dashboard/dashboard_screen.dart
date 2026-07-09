@@ -140,6 +140,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 return;
               }
               if (value == '/projected-outflows' ||
+                  value == '/movements' ||
                   value == '/categories' ||
                   value == '/accounts' ||
                   value == '/groups') {
@@ -195,6 +196,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const PopupMenuDivider(),
               _sectionHeader(context, 'Informes'),
+              const PopupMenuItem(
+                value: '/movements',
+                child: ListTile(
+                  leading: Icon(Icons.list_alt_outlined),
+                  title: Text('Movimientos'),
+                ),
+              ),
               const PopupMenuItem(
                 value: '/projected-outflows',
                 child: ListTile(

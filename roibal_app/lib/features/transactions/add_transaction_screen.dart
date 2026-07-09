@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../core/utils/account_style.dart';
@@ -24,6 +25,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _installmentsController = TextEditingController(text: '1');
   Category? _selectedCategory;
   Account? _selectedAccount;
+  DateTime _transactionDate = DateTime.now();
   bool _saving = false;
 
   bool get _isIncome => widget.type == CategoryType.income;
@@ -70,7 +72,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     setState(() => _saving = true);
     try {
       final userId = supabase.auth.currentUser!.id;
-      final now = DateTime.now();
+      final dateOnly = DateTime(
+          _transactionDate.year, _transactionDate.month, _transactionDate.day);
       final transaction = await supabase
           .from('transactions')
           .insert({
@@ -81,7 +84,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             'category_id': _selectedCategory!.id,
             'currency': _selectedAccount!.currency,
             'total_amount': amount,
-            'transaction_date': now.toIso8601String(),
+            'transaction_date': dateOnly.toIso8601String(),
           })
           .select()
           .single();
@@ -93,7 +96,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         for (var i = 1; i <= installments; i++) {
           final cents = baseCents + (i == installments ? remainderCents : 0);
           final dueDate = creditCardInstallmentDueDate(
-            purchaseDate: now,
+            purchaseDate: dateOnly,
             closingDay: _selectedAccount!.closingDay!,
             dueDay: _selectedAccount!.dueDay!,
             installmentNumber: i,
@@ -120,9 +123,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           'amount': _isIncome ? amount : -amount,
           'installment_number': 1,
           'total_installments': 1,
-          'due_date': DateTime(now.year, now.month, now.day).toIso8601String(),
+          'due_date': dateOnly.toIso8601String(),
           'status': 'paid',
-          'paid_date': now.toIso8601String(),
+          'paid_date': dateOnly.toIso8601String(),
         });
       }
 
@@ -184,6 +187,20 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             TextField(
               controller: _descriptionController,
               decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _transactionDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) setState(() => _transactionDate = picked);
+              },
+              icon: const Icon(Icons.calendar_today, size: 16),
+              label: Text(DateFormat('dd/MM/yyyy').format(_transactionDate)),
             ),
             const SizedBox(height: 24),
             Text('Categoría', style: Theme.of(context).textTheme.titleMedium),

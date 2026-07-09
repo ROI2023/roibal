@@ -17,6 +17,7 @@ import '../../features/group_events/group_events_list_screen.dart';
 import '../../features/group_events/join_event_screen.dart';
 import '../../features/group_events/settlement_screen.dart';
 import '../../features/payments/pay_credit_card_screen.dart';
+import '../../features/movements/movements_screen.dart';
 import '../../features/projected/projected_outflows_screen.dart';
 import '../../features/recurring/add_recurring_expense_screen.dart';
 import '../../features/transactions/add_transaction_screen.dart';
@@ -77,6 +78,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/projected-outflows',
         builder: (context, state) => const ProjectedOutflowsScreen(),
+      ),
+      GoRoute(
+        path: '/movements',
+        builder: (context, state) => const MovementsScreen(),
       ),
       GoRoute(
         path: '/pay-credit-card',
