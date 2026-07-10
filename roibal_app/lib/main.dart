@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/supabase_config.dart';
@@ -10,6 +11,7 @@ import 'core/theme/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
   await SupabaseConfig.initialize();
   final prefs = await SharedPreferences.getInstance();
   final pendingToken = prefs.getString('pending_invite_token');
